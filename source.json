@@ -1,0 +1,26 @@
+{
+  "apps": [
+    {
+      "beta": false,
+      "bundleIdentifier": "ccom.respring.app",
+      "developerName": "Developer",
+      "downloadURL": "https://github.com/mlabner/repo/releases/download/ipa/respringapp.ipa",
+      "iconURL": "https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/IMG_0013.png",
+      "localizedDescription": "A app to respring device",
+      "name": "RespringApp",
+      "screenshotURLs": [
+        "https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/IMG_0011.png"
+      ],
+      "size": 1000,
+      "subtitle": "A app to respring device",
+      "tintColor": "FC5B9A",
+      "version": "1.0",
+      "versionDate": "2026-03-09T00:20:00-07:00",
+      "versionDescription": "RespringApp, version 1.0:\n\RespringApp, version 1.0"
+    }
+  ],
+  "identifier": "com.respring.app",
+  "name": "RespringApp",
+  "news": [],
+  "userInfo": {}
+}
