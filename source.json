@@ -1,30 +1,19 @@
 {
-  "name": "RespringApp",
-  "identifier": "com.respring.app.repo",
+  "name": "mlabner",
   "iconURL": "https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/IMG_0014.png",
+  "identifier": "com.mlabner.repo",
   "apps": [
     {
       "name": "RespringApp",
       "bundleIdentifier": "com.respring.app",
       "developerName": "Developer",
-      "subtitle": "A app to respring device",
-      "localizedDescription": "A app to respring device",
+      "version": "1.0",
+      "versionDate": "2026-03-10T12:00:00Z",
+      "downloadURL": "https://github.com/mlabner/repo/releases/download/ipa/respringapp.ipa",
       "iconURL": "https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/IMG_0013.png",
-      "tintColor": "FC5B9A",
-      "screenshotURLs": [
-        "https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/IMG_0011.png"
-      ],
-      "versions": [
-        {
-          "version": "1.0",
-          "date": "2026-03-09T00:20:00-07:00",
-          "size": 1000,
-          "downloadURL": "https://github.com/mlabner/repo/releases/download/ipa/respringapp.ipa",
-          "localizedDescription": "RespringApp, version 1.0"
-        }
-      ]
+      "localizedDescription": "A simple utility to respring your device.",
+      "size": 271360,
+      "tintColor": "FC5B9A"
     }
-  ],
-  "news": [],
-  "userInfo": {}
+  ]
 }
