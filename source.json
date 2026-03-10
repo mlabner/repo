@@ -1,19 +1,8 @@
 {
   "name": "Repo",
-  "iconURL":"https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/Repo%20Icon.png",
+  "iconURL": "https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/Repo%20Icon.png",
   "identifier": "com.mlabner.repo",
   "apps": [
-    {
-      "name": "XeniOS",
-      "bundleIdentifier": "jp.xenios.xenios.ios",
-      "developerName": "mlabner",
-      "version": "1.0.0",
-      "versionDate": "2026-03-10T17:27:49Z",
-      "downloadURL": "https://github.com/mlabner/repo/releases/download/v1.0.0/xenios_ios_iphone_ipad.ipa",
-      "iconURL": "",
-      "size": 11684380,
-      "tintColor": "007AFF"
-    },
     {
       "name": "RespringApp",
       "bundleIdentifier": "com.respring.app",
