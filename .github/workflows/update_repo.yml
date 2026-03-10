@@ -1,13 +1,7 @@
 name: Update Feather Repo
 on:
   release:
-    types: [published, edited, created, deleted]
-  workflow_dispatch:
-    inputs:
-      bundle_id:
-        description: 'BundleID to manually remove (Leave blank if running for a release)'
-        required: false
-        default: ''
+    types: [published, edited, created]
 
 jobs:
   update-json:
@@ -22,53 +16,33 @@ jobs:
 
       - name: Update JSON
         run: |
-          ACTION="${{ github.event.action }}"
           BODY="${{ github.event.release.body }}"
-          MANUAL_ID="${{ github.event.inputs.bundle_id }}"
+          TARGET_ID=$(echo "$BODY" | grep -i "BundleID:" | head -n 1 | awk '{print $2}' | tr -d '\r' | xargs)
+          APP_NAME=$(echo "$BODY" | grep -i "Name:" | head -n 1 | cut -d':' -f2- | sed 's/^[[:space:]]*//' | tr -d '\r' | xargs)
           
-          # 1. Handle Manual Trigger (Workflow Dispatch)
-          if [ -n "$MANUAL_ID" ]; then
-            echo "Manually removing BundleID: $MANUAL_ID"
-            jq --arg id "$MANUAL_ID" 'del(.apps[] | select(.bundleIdentifier == $id))' source.json > updated.json
-          
-          # 2. Handle Auto-Deletion of a Release
-          elif [ "$ACTION" == "deleted" ]; then
-            TARGET_ID=$(echo "$BODY" | grep -i "BundleID:" | head -n 1 | awk '{print $2}' | tr -d '\r' | xargs)
-            if [ -z "$TARGET_ID" ]; then
-              echo "No BundleID found in deleted release body. Check your description."
-              exit 0
-            fi
-            echo "Auto-removing $TARGET_ID..."
-            jq --arg id "$TARGET_ID" 'del(.apps[] | select(.bundleIdentifier == $id))' source.json > updated.json
-          
-          # 3. Handle Add/Update
-          else
-            TARGET_ID=$(echo "$BODY" | grep -i "BundleID:" | head -n 1 | awk '{print $2}' | tr -d '\r' | xargs)
-            APP_NAME=$(echo "$BODY" | grep -i "Name:" | head -n 1 | cut -d':' -f2- | sed 's/^[[:space:]]*//' | tr -d '\r' | xargs)
-            DOWNLOAD_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".ipa")) | .browser_download_url' | head -n 1)
-            ICON_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | (endswith(".png") or endswith(".jpg") or endswith(".jpeg"))) | .browser_download_url' | head -n 1)
-            SIZE=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".ipa")) | .size' | head -n 1 || echo "0")
+          DOWNLOAD_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".ipa")) | .browser_download_url' | head -n 1)
+          ICON_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | (endswith(".png") or endswith(".jpg") or endswith(".jpeg"))) | .browser_download_url' | head -n 1)
+          SIZE=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".ipa")) | .size' | head -n 1 || echo "0")
 
-            if [ -z "$TARGET_ID" ] || [ -z "$APP_NAME" ]; then
-              echo "Error: Missing Name or BundleID in release."
-              exit 1
-            fi
-
-            if [ ! -f source.json ] || [ ! -s source.json ]; then
-               echo '{"name":"mlabner Repo","iconURL":"https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/Repo%20Icon.png","identifier":"com.mlabner.repo","apps":[]}' > source.json
-            fi
-
-            VERSION="${{ github.event.release.tag_name }}"
-            CLEAN_VERSION=$(echo $VERSION | sed 's/v//')
-            DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-            jq --arg id "$TARGET_ID" --arg name "$APP_NAME" --arg ver "$CLEAN_VERSION" --arg url "$DOWNLOAD_URL" --arg icon "${ICON_URL:-}" --arg size "$SIZE" --arg date "$DATE" \
-               'if (.apps | any(.bundleIdentifier == $id)) then 
-                  (.apps[] | select(.bundleIdentifier == $id)) |= (.name = $name | .version = $ver | .downloadURL = $url | .size = ($size | tonumber) | .versionDate = $date | .iconURL = (if $icon != "" then $icon else .iconURL end))
-                else 
-                  .apps = [{"name": $name, "bundleIdentifier": $id, "developerName": "mlabner", "version": $ver, "versionDate": $date, "downloadURL": $url, "iconURL": $icon, "size": ($size | tonumber), "tintColor": "007AFF"}] + .apps 
-                end' source.json > updated.json
+          if [ -z "$TARGET_ID" ] || [ -z "$APP_NAME" ]; then
+            echo "Error: Missing Name or BundleID in release."
+            exit 1
           fi
+
+          if [ ! -f source.json ] || [ ! -s source.json ]; then
+             echo '{"name":"mlabner Repo","iconURL":"https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/Repo%20Icon.png","identifier":"com.mlabner.repo","apps":[]}' > source.json
+          fi
+
+          VERSION="${{ github.event.release.tag_name }}"
+          CLEAN_VERSION=$(echo $VERSION | sed 's/v//')
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          jq --arg id "$TARGET_ID" --arg name "$APP_NAME" --arg ver "$CLEAN_VERSION" --arg url "$DOWNLOAD_URL" --arg icon "${ICON_URL:-}" --arg size "$SIZE" --arg date "$DATE" \
+             'if (.apps | any(.bundleIdentifier == $id)) then 
+                (.apps[] | select(.bundleIdentifier == $id)) |= (.name = $name | .version = $ver | .downloadURL = $url | .size = ($size | tonumber) | .versionDate = $date | .iconURL = (if $icon != "" then $icon else .iconURL end))
+              else 
+                .apps = [{"name": $name, "bundleIdentifier": $id, "developerName": "mlabner", "version": $ver, "versionDate": $date, "downloadURL": $url, "iconURL": $icon, "size": ($size | tonumber), "tintColor": "007AFF"}] + .apps 
+              end' source.json > updated.json
           
           mv updated.json source.json
 
@@ -77,5 +51,5 @@ jobs:
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
           git add source.json
-          git commit -m "Repo Sync: Action Taken" || exit 0
+          git commit -m "Repo Update: ${{ github.event.release.tag_name }}" || exit 0
           git push origin HEAD:main
