@@ -2,8 +2,8 @@ name: Manual App Deletion
 on:
   workflow_dispatch:
     inputs:
-      bundle_id:
-        description: 'Enter the BundleID of the app to remove'
+      bundle_ids:
+        description: 'Enter BundleIDs separated by commas (e.g. com.app1,com.app2)'
         required: true
 
 jobs:
@@ -15,30 +15,36 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Essential for rebase to work
+          fetch-depth: 0
 
-      - name: Remove App from JSON
+      - name: Remove Apps from JSON
         run: |
-          TARGET_ID="${{ github.event.inputs.bundle_id }}"
+          # 1. Get the input and swap commas for spaces
+          IDS_INPUT="${{ github.event.inputs.bundle_ids }}"
+          IDS_CLEAN=$(echo "$IDS_INPUT" | tr ',' ' ')
           
           if [ ! -f source.json ]; then
             echo "source.json not found."
             exit 1
           fi
 
-          echo "Removing app with BundleID: $TARGET_ID"
-          
-          # Use JQ to delete the entry
-          jq --arg id "$TARGET_ID" 'del(.apps[] | select(.bundleIdentifier == $id))' source.json > updated.json
-          mv updated.json source.json
+          # 2. Loop through each ID and update the file in memory
+          for ID in $IDS_CLEAN; do
+            # Remove whitespace
+            ID=$(echo "$ID" | xargs)
+            echo "Processing removal for: $ID"
+            
+            jq --arg id "$ID" 'del(.apps[] | select(.bundleIdentifier == $id))' source.json > updated.json
+            mv updated.json source.json
+          done
 
       - name: Commit and Push
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
           git add source.json
-          git commit -m "Manual Removal: ${{ github.event.inputs.bundle_id }}" || exit 0
+          git commit -m "Bulk Removal: ${{ github.event.inputs.bundle_ids }}" || exit 0
           
-          # The Secret Sauce: Pull latest changes, put our deletion on top, then push
+          # Final safety pull/push
           git pull --rebase origin main
           git push origin HEAD:main
