@@ -1,47 +1,84 @@
-# ... (Step 1 & 2 remain the same) ...
+name: Update Feather Repo
+on:
+  release:
+    types: [published, edited, created]
 
-# 2. Capture Asset Links (Improved for your AppIcon60x60@2x.png)
-DOWNLOAD_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | test("\\.ipa$"; "i")) | .browser_download_url' | head -n 1)
+jobs:
+  update-json:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-# This looks for any image, but prioritizes files with "icon" in the name
-ICON_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | test("\\.(png|jpg|jpeg)$"; "i")) | .browser_download_url' | grep -i "icon" | head -n 1)
+      - name: Update JSON
+        env:
+          RELEASE_ASSETS: ${{ toJson(github.event.release.assets) }}
+        run: |
+          # 1. Extract Metadata
+          BODY="${{ github.event.release.body }}"
+          TARGET_ID=$(echo "$BODY" | grep -i "BundleID:" | head -n 1 | awk '{print $2}' | tr -d '\r' | xargs)
+          APP_NAME=$(echo "$BODY" | grep -i "Name:" | head -n 1 | cut -d':' -f2- | sed 's/^[[:space:]]*//' | tr -d '\r' | xargs)
+          
+          # 2. Capture Asset Links using the Env Variable (Safer)
+          DOWNLOAD_URL=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("\\.ipa$"; "i")) | .browser_download_url' | head -n 1)
+          
+          # Look for icon-specific files first, then fallback to any image
+          ICON_URL=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("\\.(png|jpg|jpeg)$"; "i")) | .browser_download_url' | grep -i "icon" | head -n 1)
+          if [ -z "$ICON_URL" ]; then
+            ICON_URL=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("\\.(png|jpg|jpeg)$"; "i")) | .browser_download_url' | head -n 1)
+          fi
+          
+          SIZE=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("\\.ipa$"; "i")) | .size' | head -n 1 || echo "0")
 
-# If the "grep icon" search failed, just grab the first available image
-if [ -z "$ICON_URL" ]; then
-  ICON_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | test("\\.(png|jpg|jpeg)$"; "i")) | .browser_download_url' | head -n 1)
-fi
+          if [ -z "$TARGET_ID" ] || [ -z "$APP_NAME" ]; then
+            echo "Error: Missing Name or BundleID in release."
+            exit 1
+          fi
 
-SIZE=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | test("\\.ipa$"; "i")) | .size' | head -n 1 || echo "0")
+          if [ ! -f source.json ] || [ ! -s source.json ]; then
+             echo '{"name":"mlabner Repo","iconURL":"https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/Repo%20Icon.png","identifier":"com.mlabner.repo","apps":[]}' > source.json
+          fi
 
-# ... (Step 3, 4, 5 remain the same) ...
+          VERSION="${{ github.event.release.tag_name }}"
+          CLEAN_VERSION=$(echo $VERSION | sed 's/v//')
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# 6. Update or Add App Entry (With the "null" fix we talked about!)
-jq --arg id "$TARGET_ID" \
-   --arg name "$APP_NAME" \
-   --arg ver "$CLEAN_VERSION" \
-   --arg url "$DOWNLOAD_URL" \
-   --arg icon "${ICON_URL:-}" \
-   --arg size "$SIZE" \
-   --arg date "$DATE" \
-   'if (.apps | any(.bundleIdentifier == $id)) then 
-      (.apps[] | select(.bundleIdentifier == $id)) |= (
-        .name = $name | 
-        .version = $ver | 
-        .downloadURL = $url | 
-        .size = ($size | tonumber) | 
-        .versionDate = $date | 
-        .iconURL = (if $icon != "" then $icon else .iconURL end)
-      )
-    else 
-      .apps = [{
-        "name": $name,
-        "bundleIdentifier": $id,
-        "developerName": "mlabner",
-        "version": $ver,
-        "versionDate": $date,
-        "downloadURL": $url,
-        "iconURL": (if $icon != "" then $icon else null end),
-        "size": ($size | tonumber),
-        "tintColor": "007AFF"
-      }] + .apps 
-    end' source.json > updated.json
+          # 3. Update or Add App Entry
+          jq --arg id "$TARGET_ID" --arg name "$APP_NAME" --arg ver "$CLEAN_VERSION" --arg url "$DOWNLOAD_URL" --arg icon "${ICON_URL:-}" --arg size "$SIZE" --arg date "$DATE" \
+             'if (.apps | any(.bundleIdentifier == $id)) then 
+                (.apps[] | select(.bundleIdentifier == $id)) |= (
+                  .name = $name | 
+                  .version = $ver | 
+                  .downloadURL = $url | 
+                  .size = ($size | tonumber) | 
+                  .versionDate = $date | 
+                  .iconURL = (if $icon != "" then $icon else .iconURL end)
+                )
+              else 
+                .apps = [{
+                  "name": $name, 
+                  "bundleIdentifier": $id, 
+                  "developerName": "mlabner", 
+                  "version": $ver, 
+                  "versionDate": $date, 
+                  "downloadURL": $url, 
+                  "iconURL": (if $icon != "" then $icon else null end), 
+                  "size": ($size | tonumber), 
+                  "tintColor": "007AFF"
+                }] + .apps 
+              end' source.json > updated.json
+          
+          mv updated.json source.json
+
+      - name: Commit and Push
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add source.json
+          git commit -m "Repo Update: ${{ github.event.release.tag_name }}" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
