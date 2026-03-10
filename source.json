@@ -4,6 +4,17 @@
   "identifier": "com.mlabner.repo",
   "apps": [
     {
+      "name": "SideStore",
+      "bundleIdentifier": "com.SideStore.SideStore",
+      "developerName": "mlabner",
+      "version": "0.6.3-20260303.286+dfdac41a",
+      "versionDate": "2026-03-10T20:49:48Z",
+      "downloadURL": "https://github.com/mlabner/repo/releases/download/v0.6.3-20260303.286%2Bdfdac41a/SideStore.ipa",
+      "iconURL": "https://github.com/mlabner/repo/releases/download/v0.6.3-20260303.286%2Bdfdac41a/AppIcon60x60%402x.png",
+      "size": 24760006,
+      "tintColor": "007AFF"
+    },
+    {
       "name": "XeniOS",
       "bundleIdentifier": "jp.xenios.xenios.ios",
       "developerName": "mlabner",
