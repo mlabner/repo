@@ -2,5 +2,17 @@
   "name": "Repo",
   "iconURL": "https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/Repo%20Icon.png",
   "identifier": "com.mlabner.repo",
-  "apps": []
+  "apps": [
+    {
+      "name": "RespringApp",
+      "bundleIdentifier": "com.respring.app",
+      "developerName": "mlabner",
+      "version": "1.0",
+      "versionDate": "2026-03-10T21:03:00Z",
+      "downloadURL": "https://github.com/mlabner/repo/releases/download/v1.0/respringapp.ipa",
+      "iconURL": null,
+      "size": 264632,
+      "tintColor": "007AFF"
+    }
+  ]
 }
