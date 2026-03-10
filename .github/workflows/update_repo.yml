@@ -16,27 +16,27 @@ jobs:
 
       - name: Update JSON
         env:
-          RELEASE_ASSETS: ${{ toJson(github.event.release.assets) }}
+          # We pass the assets directly to a variable for jq to process
+          ASSETS_JSON: ${{ toJson(github.event.release.assets) }}
         run: |
-          # 1. Wait for assets to fully register
-          echo "Waiting 5 seconds for assets to settle..."
-          sleep 10
-          
-          # DEBUG: Show us what assets are actually detected
-          echo "Detected Assets: $RELEASE_ASSETS"
-
-          # 2. Extract Metadata
+          # 1. Metadata Extraction
           BODY="${{ github.event.release.body }}"
           TARGET_ID=$(echo "$BODY" | grep -i "BundleID:" | head -n 1 | awk '{print $2}' | tr -d '\r' | xargs)
           APP_NAME=$(echo "$BODY" | grep -i "Name:" | head -n 1 | cut -d':' -f2- | sed 's/^[[:space:]]*//' | tr -d '\r' | xargs)
           
-          # 3. Capture Asset Links
-          # We use a very broad search for anything containing "icon" OR just a png/jpg
-          ICON_URL=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("icon|png|jpg|jpeg"; "i")) | .browser_download_url' | head -n 1)
+          # 2. Precision Asset Capture
+          # Look specifically for your new standardized filename
+          ICON_URL=$(echo "$ASSETS_JSON" | jq -r '.[] | select(.name == "app-icon.png") | .browser_download_url' | head -n 1)
           
-          DOWNLOAD_URL=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("\\.ipa$"; "i")) | .browser_download_url' | head -n 1)
-          SIZE=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("\\.ipa$"; "i")) | .size' | head -n 1 || echo "0")
+          # Fallback: If app-icon.png isn't found, look for ANY png/jpg as a backup
+          if [ -z "$ICON_URL" ] || [ "$ICON_URL" == "null" ]; then
+            ICON_URL=$(echo "$ASSETS_JSON" | jq -r '.[] | select(.name | test("\\.(png|jpg|jpeg)$"; "i")) | .browser_download_url' | head -n 1)
+          fi
 
+          DOWNLOAD_URL=$(echo "$ASSETS_JSON" | jq -r '.[] | select(.name | test("\\.ipa$"; "i")) | .browser_download_url' | head -n 1)
+          SIZE=$(echo "$ASSETS_JSON" | jq -r '.[] | select(.name | test("\\.ipa$"; "i")) | .size' | head -n 1 || echo "0")
+
+          # 3. Validation & Setup
           if [ -z "$TARGET_ID" ] || [ -z "$APP_NAME" ]; then
             echo "Error: Missing Name or BundleID."
             exit 1
@@ -50,7 +50,8 @@ jobs:
           CLEAN_VERSION=$(echo $VERSION | sed 's/v//')
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # 4. Update JSON with strict null prevention
+          # 4. JSON Update
+          # We use a cleaner check: if $icon is empty/null, we use the existing one or null.
           jq --arg id "$TARGET_ID" --arg name "$APP_NAME" --arg ver "$CLEAN_VERSION" --arg url "$DOWNLOAD_URL" --arg icon "$ICON_URL" --arg size "$SIZE" --arg date "$DATE" \
              'if (.apps | any(.bundleIdentifier == $id)) then 
                 (.apps[] | select(.bundleIdentifier == $id)) |= (
