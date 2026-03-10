@@ -11,27 +11,24 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Update JSON
         run: |
-          # 1. Capture Metadata from Release Body
+          # 1. Extract and Clean Metadata from Release Body
           BODY="${{ github.event.release.body }}"
+          TARGET_ID=$(echo "$BODY" | grep -i "BundleID:" | awk '{print $2}' | tr -d '\r' | xargs)
+          APP_NAME=$(echo "$BODY" | grep -i "Name:" | cut -d':' -f2- | sed 's/^[[:space:]]*//' | tr -d '\r' | xargs)
           
-          # Extracts BundleID (handles potential Windows line endings)
-          TARGET_ID=$(echo "$BODY" | grep -i "BundleID:" | awk '{print $2}' | tr -d '\r')
-          
-          # Extracts Name (everything after the colon)
-          APP_NAME=$(echo "$BODY" | grep -i "Name:" | cut -d':' -f2- | sed 's/^[[:space:]]*//' | tr -d '\r')
-          
-          # 2. Capture Assets (IPA, Icon, and File Size)
+          # 2. Capture Asset Links
           DOWNLOAD_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".ipa")) | .browser_download_url' | head -n 1)
           ICON_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | (endswith(".png") or endswith(".jpg") or endswith(".jpeg"))) | .browser_download_url' | head -n 1)
-          SIZE=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".ipa")) | .size' | head -n 1)
-          
-          # 3. Metadata Validation
+          SIZE=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".ipa")) | .size' | head -n 1 || echo "0")
+
+          # 3. Validation
           if [ -z "$TARGET_ID" ] || [ -z "$APP_NAME" ]; then
             echo "Error: Metadata missing in Release Body."
-            echo "Found Name: '$APP_NAME', BundleID: '$TARGET_ID'"
             exit 1
           fi
 
@@ -40,12 +37,12 @@ jobs:
             echo '{"name":"mlabner Repo","identifier":"com.mlabner.repo","apps":[]}' > source.json
           fi
 
-          # 5. Prepare Variables for JQ
+          # 5. Prepare Variables
           VERSION="${{ github.event.release.tag_name }}"
           CLEAN_VERSION=$(echo $VERSION | sed 's/v//')
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # 6. Upsert Logic (Update if exists, Add if new)
+          # 6. Update or Add App Entry
           jq --arg id "$TARGET_ID" \
              --arg name "$APP_NAME" \
              --arg ver "$CLEAN_VERSION" \
@@ -64,7 +61,7 @@ jobs:
                   "versionDate": $date,
                   "downloadURL": $url,
                   "iconURL": $icon,
-                  "localizedDescription": "Automatically updated via GitHub Actions.",
+                  "localizedDescription": "Updated via GitHub Actions",
                   "size": ($size | tonumber),
                   "tintColor": "007AFF"
                 }] + .apps 
@@ -77,5 +74,6 @@ jobs:
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
           git add source.json
-          git commit -m "Auto-update $TARGET_ID version ${{ github.event.release.tag_name }}" || exit 0
-          git push
+          git commit -m "Auto-update $TARGET_ID to ${{ github.event.release.tag_name }}" || exit 0
+          # Fix for detached HEAD: Push specifically to the main branch
+          git push origin HEAD:main
