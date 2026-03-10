@@ -1,7 +1,7 @@
 name: Update Feather Repo
 on:
   release:
-    types: [published, edited, created]
+    types: [published, edited, created, deleted]
 
 jobs:
   update-json:
@@ -16,55 +16,66 @@ jobs:
 
       - name: Update JSON
         run: |
-          # 1. Extract and Clean Metadata from Release Body
+          # 1. Determine the Action Type
+          ACTION="${{ github.event.action }}"
           BODY="${{ github.event.release.body }}"
-          TARGET_ID=$(echo "$BODY" | grep -i "BundleID:" | awk '{print $2}' | tr -d '\r' | xargs)
-          APP_NAME=$(echo "$BODY" | grep -i "Name:" | cut -d':' -f2- | sed 's/^[[:space:]]*//' | tr -d '\r' | xargs)
           
-          # 2. Capture Asset Links
-          DOWNLOAD_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".ipa")) | .browser_download_url' | head -n 1)
-          ICON_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | (endswith(".png") or endswith(".jpg") or endswith(".jpeg"))) | .browser_download_url' | head -n 1)
-          SIZE=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".ipa")) | .size' | head -n 1 || echo "0")
+          # 2. Extract BundleID (Needed for both adding and deleting)
+          TARGET_ID=$(echo "$BODY" | grep -i "BundleID:" | awk '{print $2}' | tr -d '\r' | xargs)
+          
+          # 3. Handle Deletion
+          if [ "$ACTION" == "deleted" ]; then
+            if [ -z "$TARGET_ID" ]; then
+              echo "Error: Could not find BundleID in the deleted release body to remove it."
+              exit 1
+            fi
+            
+            echo "Deleting app with BundleID: $TARGET_ID"
+            jq --arg id "$TARGET_ID" 'del(.apps[] | select(.bundleIdentifier == $id))' source.json > updated.json
+          
+          # 4. Handle Create/Edit/Publish
+          else
+            APP_NAME=$(echo "$BODY" | grep -i "Name:" | cut -d':' -f2- | sed 's/^[[:space:]]*//' | tr -d '\r' | xargs)
+            DOWNLOAD_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".ipa")) | .browser_download_url' | head -n 1)
+            ICON_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | (endswith(".png") or endswith(".jpg") or endswith(".jpeg"))) | .browser_download_url' | head -n 1)
+            SIZE=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".ipa")) | .size' | head -n 1 || echo "0")
 
-          # 3. Validation
-          if [ -z "$TARGET_ID" ] || [ -z "$APP_NAME" ]; then
-            echo "Error: Metadata missing in Release Body."
-            exit 1
+            if [ -z "$TARGET_ID" ] || [ -z "$APP_NAME" ]; then
+              echo "Error: Metadata missing in Release Body."
+              exit 1
+            fi
+
+            if [ ! -f source.json ] || [ ! -s source.json ]; then
+              echo '{"name":"mlabner Repo","iconURL":"https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/Repo%20Icon.png","identifier":"com.mlabner.repo","apps":[]}' > source.json
+            fi
+
+            VERSION="${{ github.event.release.tag_name }}"
+            CLEAN_VERSION=$(echo $VERSION | sed 's/v//')
+            DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+            jq --arg id "$TARGET_ID" \
+               --arg name "$APP_NAME" \
+               --arg ver "$CLEAN_VERSION" \
+               --arg url "$DOWNLOAD_URL" \
+               --arg icon "${ICON_URL:-}" \
+               --arg size "$SIZE" \
+               --arg date "$DATE" \
+               'if (.apps | any(.bundleIdentifier == $id)) then 
+                  (.apps[] | select(.bundleIdentifier == $id)) |= (.name = $name | .version = $ver | .downloadURL = $url | .size = ($size | tonumber) | .versionDate = $date | .iconURL = (if $icon != "" then $icon else .iconURL end))
+                else 
+                  .apps = [{
+                    "name": $name,
+                    "bundleIdentifier": $id,
+                    "developerName": "mlabner",
+                    "version": $ver,
+                    "versionDate": $date,
+                    "downloadURL": $url,
+                    "iconURL": $icon,
+                    "size": ($size | tonumber),
+                    "tintColor": "007AFF"
+                  }] + .apps 
+                end' source.json > updated.json
           fi
-
-          # 4. Ensure source.json is valid (Includes your new Repo Icon)
-          if [ ! -f source.json ] || [ ! -s source.json ]; then
-            echo '{"name":"mlabner Repo","iconURL":"https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/Repo%20Icon.png","identifier":"com.mlabner.repo","apps":[]}' > source.json
-          fi
-
-          # 5. Prepare Variables
-          VERSION="${{ github.event.release.tag_name }}"
-          CLEAN_VERSION=$(echo $VERSION | sed 's/v//')
-          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-          # 6. Update or Add App Entry
-          jq --arg id "$TARGET_ID" \
-             --arg name "$APP_NAME" \
-             --arg ver "$CLEAN_VERSION" \
-             --arg url "$DOWNLOAD_URL" \
-             --arg icon "${ICON_URL:-}" \
-             --arg size "$SIZE" \
-             --arg date "$DATE" \
-             'if (.apps | any(.bundleIdentifier == $id)) then 
-                (.apps[] | select(.bundleIdentifier == $id)) |= (.name = $name | .version = $ver | .downloadURL = $url | .size = ($size | tonumber) | .versionDate = $date | .iconURL = (if $icon != "" then $icon else .iconURL end))
-              else 
-                .apps = [{
-                  "name": $name,
-                  "bundleIdentifier": $id,
-                  "developerName": "mlabner",
-                  "version": $ver,
-                  "versionDate": $date,
-                  "downloadURL": $url,
-                  "iconURL": $icon,
-                  "size": ($size | tonumber),
-                  "tintColor": "007AFF"
-                }] + .apps 
-              end' source.json > updated.json
           
           mv updated.json source.json
 
@@ -73,5 +84,5 @@ jobs:
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
           git add source.json
-          git commit -m "Auto-update $TARGET_ID to ${{ github.event.release.tag_name }}" || exit 0
+          git commit -m "Repo Sync: ${{ github.event.action }} ${{ github.event.release.tag_name }}" || exit 0
           git push origin HEAD:main
