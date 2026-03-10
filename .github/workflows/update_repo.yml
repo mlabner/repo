@@ -18,49 +18,40 @@ jobs:
         env:
           RELEASE_ASSETS: ${{ toJson(github.event.release.assets) }}
         run: |
-          # 1. Extract Metadata from Release Body
+          # 1. Wait for assets to fully register
+          echo "Waiting 5 seconds for assets to settle..."
+          sleep 5
+          
+          # DEBUG: Show us what assets are actually detected
+          echo "Detected Assets: $RELEASE_ASSETS"
+
+          # 2. Extract Metadata
           BODY="${{ github.event.release.body }}"
           TARGET_ID=$(echo "$BODY" | grep -i "BundleID:" | head -n 1 | awk '{print $2}' | tr -d '\r' | xargs)
           APP_NAME=$(echo "$BODY" | grep -i "Name:" | head -n 1 | cut -d':' -f2- | sed 's/^[[:space:]]*//' | tr -d '\r' | xargs)
           
-          # 2. Advanced Asset Capture
-          # Search for any asset that contains "icon" (case-insensitive)
-          ICON_URL=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("icon"; "i")) | .browser_download_url' | head -n 1)
-
-          # Fallback: If no file has "icon" in the name, grab the first .png, .jpg, or .jpeg
-          if [ -z "$ICON_URL" ] || [ "$ICON_URL" == "null" ]; then
-            ICON_URL=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("\\.(png|jpg|jpeg)$"; "i")) | .browser_download_url' | head -n 1)
-          fi
-
-          # Capture the IPA link and file size
+          # 3. Capture Asset Links
+          # We use a very broad search for anything containing "icon" OR just a png/jpg
+          ICON_URL=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("icon|png|jpg|jpeg"; "i")) | .browser_download_url' | head -n 1)
+          
           DOWNLOAD_URL=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("\\.ipa$"; "i")) | .browser_download_url' | head -n 1)
           SIZE=$(echo "$RELEASE_ASSETS" | jq -r '.[] | select(.name | test("\\.ipa$"; "i")) | .size' | head -n 1 || echo "0")
 
-          # 3. Validation
           if [ -z "$TARGET_ID" ] || [ -z "$APP_NAME" ]; then
-            echo "Error: Missing Name or BundleID in release description."
+            echo "Error: Missing Name or BundleID."
             exit 1
           fi
 
-          # 4. Create source.json if it doesn't exist
           if [ ! -f source.json ] || [ ! -s source.json ]; then
              echo '{"name":"mlabner Repo","iconURL":"https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/Repo%20Icon.png","identifier":"com.mlabner.repo","apps":[]}' > source.json
           fi
 
-          # 5. Prepare Version and Date
           VERSION="${{ github.event.release.tag_name }}"
           CLEAN_VERSION=$(echo $VERSION | sed 's/v//')
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # 6. Update or Add App Entry
-          # Note: iconURL uses (if $icon != "" then $icon else null end) to prevent Feather Parse Errors
-          jq --arg id "$TARGET_ID" \
-             --arg name "$APP_NAME" \
-             --arg ver "$CLEAN_VERSION" \
-             --arg url "$DOWNLOAD_URL" \
-             --arg icon "${ICON_URL:-}" \
-             --arg size "$SIZE" \
-             --arg date "$DATE" \
+          # 4. Update JSON with strict null prevention
+          jq --arg id "$TARGET_ID" --arg name "$APP_NAME" --arg ver "$CLEAN_VERSION" --arg url "$DOWNLOAD_URL" --arg icon "$ICON_URL" --arg size "$SIZE" --arg date "$DATE" \
              'if (.apps | any(.bundleIdentifier == $id)) then 
                 (.apps[] | select(.bundleIdentifier == $id)) |= (
                   .name = $name | 
@@ -92,7 +83,5 @@ jobs:
           git config --global user.email "action@github.com"
           git add source.json
           git commit -m "Repo Update: ${{ github.event.release.tag_name }}" || exit 0
-          
-          # Force a pull-rebase to prevent "non-fast-forward" errors during bulk releases
           git pull --rebase origin main
           git push origin HEAD:main
