@@ -2,39 +2,5 @@
   "name": "Repo",
   "iconURL": "https://raw.githubusercontent.com/mlabner/repo/refs/heads/main/Repo%20Icon.png",
   "identifier": "com.mlabner.repo",
-  "apps": [
-    {
-      "name": "SideStore",
-      "bundleIdentifier": "com.SideStore.SideStore",
-      "developerName": "mlabner",
-      "version": "0.6.3-20260303.286+dfdac41a",
-      "versionDate": "2026-03-10T20:49:48Z",
-      "downloadURL": "https://github.com/mlabner/repo/releases/download/v0.6.3-20260303.286%2Bdfdac41a/SideStore.ipa",
-      "iconURL": "https://github.com/mlabner/repo/releases/download/v0.6.3-20260303.286%2Bdfdac41a/AppIcon60x60%402x.png",
-      "size": 24760006,
-      "tintColor": "007AFF"
-    },
-    {
-      "name": "XeniOS",
-      "bundleIdentifier": "jp.xenios.xenios.ios",
-      "developerName": "mlabner",
-      "version": "1.0.0",
-      "versionDate": "2026-03-10T20:48:00Z",
-      "downloadURL": "https://github.com/mlabner/repo/releases/download/v1.0.0/xenios_ios_iphone_ipad.ipa",
-      "iconURL": "https://github.com/mlabner/repo/releases/download/v1.0.0/AppIcon60x60%402x.png",
-      "size": 11684380,
-      "tintColor": "007AFF"
-    },
-    {
-      "name": "RespringApp",
-      "bundleIdentifier": "com.respring.app",
-      "developerName": "mlabner",
-      "version": "1.0",
-      "versionDate": "2026-03-10T20:14:25Z",
-      "downloadURL": "https://github.com/mlabner/repo/releases/download/v1.0/respringapp.ipa",
-      "iconURL": "https://github.com/mlabner/repo/releases/download/v1.0/FRIcon60x60%402x.png",
-      "size": 264632,
-      "tintColor": "007AFF"
-    }
-  ]
+  "apps": []
 }
